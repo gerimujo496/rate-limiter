@@ -1,0 +1,26 @@
+{
+  "name": "rate-limiting",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal Node HTTP server with Express and a health endpoint.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/index.ts"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
+}

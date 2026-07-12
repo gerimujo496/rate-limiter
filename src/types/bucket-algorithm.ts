@@ -1,0 +1,6 @@
+interface UserTokens{
+    
+}
+interface Bucket{
+
+}
