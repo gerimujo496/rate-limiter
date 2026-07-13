@@ -1,36 +1,27 @@
-import type { Request } from "express";
-import type {
-  RateLimitConfig,
-  RequestsUsage,
-} from "../../conf/rate-limiting/bucket-algorithm.js";
 import { getRedisValue, setRedisValue } from "../../lib/redis.js";
-import {
-  ExtractedRequestDetails,
-  isHttpMethod,
-} from "../../utils/extractRequestDetails.js";
-import { RateLimitIpKeyPrefix } from "./index.js";
+import { ExtractedRequestDetails } from "../../utils/extractRequestDetails.js";
 import { Route } from "../../conf/routes.js";
 import {
-  BadRequestError,
-  MethodNotAllowedError,
   RateLimitConfigError,
   validateRequestDetailsOrThrowError,
 } from "../../utils/error.js";
+import { RateLimitConfig, RequestsUsage } from "../../types/bucket-algorithm.js";
+import { RateLimitIpKeyPrefix } from "./index.js";
 
 export async function checkRequestRateLimitBucketAlgorithm(
   requestDetails: ExtractedRequestDetails,
   route: Route,
-  _config: RateLimitConfig,
+  config: RateLimitConfig,
 ): Promise<boolean> {
   const requestUsage = await getRedisValue(requestDetails.ip);
 
   if (!requestUsage) {
-    return await refillBucket(requestDetails, _config, route);
+    return refillBucket(requestDetails, config, route);
   }
 
-  return await checkIfRateLimitExceeded(
+  return checkIfRateLimitExceeded(
     requestDetails,
-    _config,
+    config,
     route,
     requestUsage,
   );
@@ -79,7 +70,21 @@ const checkIfRateLimitExceeded = async (
 
   if (usage.tokenCount <= 0) return true;
 
-  await setRedisValue(
+//   const bug =  new Promise((resolve) => {setTimeout(resolve, 4000);
+//     return true;});
+// if(await bug) {
+//   console.log("Bug triggered: Simulating a delay of 4 seconds.");
+//    await setRedisValue(
+//     `${RateLimitIpKeyPrefix}${ip}`,
+//     {
+//       tokenCount: usage.tokenCount - 1,
+//       lastRequestTimestamp: usage.lastRequestTimestamp,
+//     },
+//     rateLimit.rateLimit.timeWindowSeconds,
+//   );
+// }
+
+ await setRedisValue(
     `${RateLimitIpKeyPrefix}${ip}`,
     {
       tokenCount: usage.tokenCount - 1,
@@ -87,6 +92,8 @@ const checkIfRateLimitExceeded = async (
     },
     rateLimit.rateLimit.timeWindowSeconds,
   );
+ 
 
   return false;
 };
+

@@ -1,22 +1,10 @@
+import { RateLimitConfig, RateLimitPolicy } from "../../types/bucket-algorithm.js";
+import { HttpMethod } from "../../types/http-method.js";
 import { Route } from "../routes.js";
 
-export type HttpMethod =
-  | "GET"
-  | "POST"
-  | "QUERY"
-  | "PUT"
-  | "DELETE"
-  | "PATCH"
-  | "HEAD"
-  | "OPTIONS";
 
-interface RateLimitPolicy {
-  httpMethod: HttpMethod;
-  rateLimit: { maxRequests: number; timeWindowSeconds: number };
-}
-export type RequestsUsage = { tokenCount: number; lastRequestTimestamp: Date };
 
-export type RateLimitConfig = Map<Route, Map<HttpMethod, RateLimitPolicy>>;
+
 
 export const rateLimitConfig: RateLimitConfig = new Map<
   Route,

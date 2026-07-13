@@ -13,3 +13,9 @@ const myQueue = new Queue('foo', { connection: {
     }});
 
    
+myQueue.add('my-job', { foo: 'bar' }).then(() => {
+    console.log('Job added to the queue');
+}).catch((err) => {
+    console.error('Error adding job to the queue:', err);
+});
+

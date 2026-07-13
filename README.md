@@ -33,6 +33,7 @@ Create a `.env` file in the project root.
 | `NODE_ENV` | No | Runtime environment. Defaults to `development`. |
 | `UPSTASH_REDIS_REST_URL` | Yes | Upstash Redis REST URL. |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes | Upstash Redis REST token. |
+| `UPSTASH_REDIS_URL` | No | Optional TCP Redis URL (`redis://` or `rediss://`) for BullMQ-style clients. |
 
 Example:
 
@@ -41,11 +42,15 @@ PORT=3000
 NODE_ENV=development
 UPSTASH_REDIS_REST_URL=example
 UPSTASH_REDIS_REST_TOKEN=example
+# Optional: only needed if you add BullMQ with a TCP Redis connection.
+# UPSTASH_REDIS_URL=rediss://default:password@example.upstash.io:6380
 ```
 
 Important:
 The Redis client is initialized during app startup, so valid Upstash values are
 required before the server can boot successfully.
+`UPSTASH_REDIS_REST_URL` cannot be used as a BullMQ connection host because
+BullMQ requires a TCP Redis endpoint.
 
 ## Install and Run
 
@@ -184,5 +189,6 @@ flowchart TD
   method.
 - Redis key handling is asymmetrical: `getRedisValue()` prefixes keys
   internally, while `setRedisValue()` expects the caller to pass the final key.
-- `src/lib/bullmq.js` and `src/types/bucket-algorithm.ts` currently exist as
-  unused or incomplete artifacts.
+- `src/lib/bullmq.ts` only prepares BullMQ-compatible Redis connection config.
+  The active application path still uses `@upstash/redis` over REST.
+- `src/types/bucket-algorithm.ts` currently exists as an incomplete artifact.

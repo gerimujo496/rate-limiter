@@ -1,6 +1,10 @@
-interface UserTokens{
-    
-}
-interface Bucket{
+import { Route } from "../conf/routes.js";
+import { HttpMethod } from "./http-method.js";
 
+export interface RateLimitPolicy {
+  httpMethod: HttpMethod;
+  rateLimit: { maxRequests: number; timeWindowSeconds: number };
 }
+export type RequestsUsage = { tokenCount: number; lastRequestTimestamp: Date };
+
+export type RateLimitConfig = Map<Route, Map<HttpMethod, RateLimitPolicy>>;

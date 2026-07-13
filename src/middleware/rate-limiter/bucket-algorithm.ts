@@ -1,4 +1,3 @@
-// src/middleware/request-logger.ts
 import type { NextFunction, Request, Response } from "express";
 import {
   hasExceededRequestRateLimit,
@@ -6,11 +5,7 @@ import {
 } from "../../helpers/rate-limiter/index.js";
 import { rateLimitConfig } from "../../conf/rate-limiting/bucket-algorithm.js";
 import { Route } from "../../conf/routes.js";
-import {
-  errorHandler,
-  RateLimitConfigError,
-  RateLimitExceededError,
-} from "../../utils/error.js";
+import { errorHandler, RateLimitExceededError } from "../../utils/error.js";
 
 export async function apiRateLimit(
   request: Request,
@@ -25,7 +20,9 @@ export async function apiRateLimit(
       rateLimitConfig,
     );
 
-    if (hasExceeded) throw new RateLimitExceededError("Rate limit exceeded.");
+    if (hasExceeded) {
+      throw new RateLimitExceededError("Rate limit exceeded.");
+    }
 
     next();
   } catch (error) {

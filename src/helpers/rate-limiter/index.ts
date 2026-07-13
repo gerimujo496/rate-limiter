@@ -1,9 +1,10 @@
 import type { Request } from "express";
-import type { RateLimitConfig } from "../../conf/rate-limiting/bucket-algorithm.js";
+
 import { checkRequestRateLimitBucketAlgorithm } from "./bucket-algorithm.js";
 import { extractRequestDetails } from "../../utils/extractRequestDetails.js";
 import { Route } from "../../conf/routes.js";
 import { BadRequestError } from "../../utils/error.js";
+import { RateLimitConfig } from "../../types/bucket-algorithm.js";
 
 export enum RateLimitAlgorithm {
   TokenBucket = "token-bucket",

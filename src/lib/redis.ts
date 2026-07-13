@@ -1,7 +1,7 @@
 import process from "node:process";
 import { Redis } from "@upstash/redis";
 import "../load-env.js";
-import { RequestsUsage } from "../conf/rate-limiting/bucket-algorithm.js";
+import { RequestsUsage } from "../types/bucket-algorithm.js";
 import { RateLimitIpKeyPrefix } from "../helpers/rate-limiter/index.js";
 
 const url = process.env.UPSTASH_REDIS_REST_URL;

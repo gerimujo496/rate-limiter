@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { HttpMethod } from "../conf/rate-limiting/bucket-algorithm.js";
+import type { HttpMethod } from "../types/http-method.js";
 
 const HTTP_METHODS: readonly HttpMethod[] = [
   "GET",
