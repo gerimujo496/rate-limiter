@@ -6,8 +6,6 @@ export enum Route {
   Health = "/health",
   TokenBucket = "/token-bucket",
   LeakingBucket = "/leaking-bucket",
-  FixedWindow = "/fixed-window",
-
 }
 
 export interface AppRouteDefinition {

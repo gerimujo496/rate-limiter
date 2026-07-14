@@ -13,6 +13,7 @@ export function createRateLimiterExpressRouter() {
       framework: "express",
       algorithm: "token-bucket",
       route: `${Route.RateLimiter}${Route.TokenBucket}`,
+      message: "Request allowed by token-bucket rate limiter.",
       status: "ok",
     });
   });

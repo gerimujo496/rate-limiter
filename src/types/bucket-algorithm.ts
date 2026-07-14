@@ -5,6 +5,9 @@ export interface RateLimitPolicy {
   httpMethod: HttpMethod;
   rateLimit: { maxRequests: number; timeWindowSeconds: number };
 }
-export type RequestsUsage = { tokenCount: number; lastRequestTimestamp: Date };
+export type RequestsUsage = {
+  tokenCount: number;
+  lastRefillTimestamp: number;
+};
 
 export type RateLimitConfig = Map<Route, Map<HttpMethod, RateLimitPolicy>>;
