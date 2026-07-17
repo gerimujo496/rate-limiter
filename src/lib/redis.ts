@@ -20,11 +20,11 @@ export const redis = new Redis({
   token,
 });
 
-export async function getRedisValue(
+export async function getRedisValue<T>(
   key: string,
-): Promise<RequestsUsage | null> {
+): Promise<T | null> {
   try {
-    const value = await redis.get<RequestsUsage | null>(
+    const value = await redis.get<T | null>(
       `${RateLimitIpKeyPrefix}${key}`,
     );
     return value;
@@ -34,9 +34,9 @@ export async function getRedisValue(
   }
 }
 
-export async function setRedisValue(
+export async function setRedisValue<T>(
   key: string,
-  value: RequestsUsage,
+  value: T,
   expirationInSeconds: number,
 ): Promise<void> {
   try {

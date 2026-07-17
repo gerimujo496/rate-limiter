@@ -31,6 +31,13 @@ export class RateLimitExceededError extends Error {
   }
 }
 
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
 export const errorHandler = (
   error: unknown,
 ): { status: number; message: string } => {
@@ -39,6 +46,12 @@ export const errorHandler = (
   }
   if (error instanceof RateLimitExceededError) {
     return { status: 429, message: error.message };
+  }
+  if (error instanceof BadRequestError) {
+    return { status: 400, message: error.message };
+  }
+  if (error instanceof NotFoundError) {
+    return { status: 404, message: error.message };
   }
   return { status: 500, message: "Internal server error." };
 };

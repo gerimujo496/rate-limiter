@@ -6,6 +6,8 @@ export enum Route {
   Health = "/health",
   TokenBucket = "/token-bucket",
   LeakingBucket = "/leaking-bucket",
+  Urls = "/urls",
+  ShortUrl = "/shorturl",
 }
 
 export interface AppRouteDefinition {
@@ -16,4 +18,7 @@ export interface AppRouteDefinition {
 export const APP_ROUTES: readonly AppRouteDefinition[] = [
   { method: "GET", path: Route.Health },
   { method: "GET", path: `${Route.RateLimiter}${Route.TokenBucket}` },
- ];
+  { method: "GET", path: Route.Urls },
+  { method: "GET", path: `${Route.Urls}/:shortUrl` },
+  { method: "POST", path: Route.Urls },
+];
