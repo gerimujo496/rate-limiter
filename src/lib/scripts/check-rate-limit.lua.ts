@@ -5,6 +5,7 @@ local capacity = tonumber(ARGV[1])
 local refillPeriodSeconds = tonumber(ARGV[2])
 local currentTimeSeconds = tonumber(ARGV[3])
 local requestedTokens = tonumber(ARGV[4])
+local keyTtlSeconds = tonumber(ARGV[5])
 
 if not capacity or capacity <= 0 then
     return redis.error_reply("capacity must be a positive number")
@@ -20,6 +21,10 @@ end
 
 if not requestedTokens or requestedTokens <= 0 then
     return redis.error_reply("requestedTokens must be a positive number")
+end
+
+if not keyTtlSeconds or keyTtlSeconds <= 0 then
+    return redis.error_reply("keyTtlSeconds must be a positive number")
 end
 
 local storedBucket = redis.call("GET", key)
@@ -105,11 +110,15 @@ local updatedBucket = {
     lastRefillTimestamp = lastRefillTimestamp
 }
 
--- Store the bucket without expiration.
+-- Sliding idle TTL: each request refreshes expiry. After the idle window,
+-- Redis evicts the key; the next request recreates a full bucket, which is
+-- equivalent to a fully refilled one.
 redis.call(
     "SET",
     key,
-    cjson.encode(updatedBucket)
+    cjson.encode(updatedBucket),
+    "EX",
+    keyTtlSeconds
 )
 
 return {

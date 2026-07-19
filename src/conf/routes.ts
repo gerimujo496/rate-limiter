@@ -8,6 +8,10 @@ export enum Route {
   LeakingBucket = "/leaking-bucket",
   Urls = "/urls",
   ShortUrl = "/shorturl",
+  Webhooks = "/webhooks",
+  WebhookHandlerOk = "/webhooks/handlers/ok",
+  WebhookHandlerFail = "/webhooks/handlers/fail",
+  Users = "/users",
 }
 
 export interface AppRouteDefinition {
@@ -21,4 +25,12 @@ export const APP_ROUTES: readonly AppRouteDefinition[] = [
   { method: "GET", path: Route.Urls },
   { method: "GET", path: `${Route.Urls}/:shortUrl` },
   { method: "POST", path: Route.Urls },
+  { method: "POST", path: Route.Webhooks },
+  { method: "POST", path: Route.WebhookHandlerOk },
+  { method: "POST", path: Route.WebhookHandlerFail },
+  { method: "GET", path: Route.Users },
+  { method: "GET", path: `${Route.Users}/:id` },
+  { method: "POST", path: Route.Users },
+  { method: "PUT", path: `${Route.Users}/:id` },
+  { method: "DELETE", path: `${Route.Users}/:id` },
 ];

@@ -1,6 +1,6 @@
 export interface UrlRecord {
   id: number;
   long_url: string;
-  short_url: string;
+  short_url: string | null;
   created_at: Date;
 }

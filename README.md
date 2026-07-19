@@ -8,12 +8,12 @@ In a distributed system, each API replica would otherwise keep its own in-memory
 
 ## What problem this solves
 
-| Problem | What goes wrong without a shared limiter | How this project addresses it |
-| --- | --- | --- |
-| **Multi-instance drift** | N replicas × local limit ≈ N× the intended quota | All instances read/write the same Redis key per client |
-| **Race conditions** | Concurrent `GET` → decide → `SET` lets several requests pass before any write lands | Refill, consume, and persist run inside **one Redis Lua script** (`EVAL`) |
+| Problem                     | What goes wrong without a shared limiter                                            | How this project addresses it                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Multi-instance drift**    | N replicas × local limit ≈ N× the intended quota                                    | All instances read/write the same Redis key per client                            |
+| **Race conditions**         | Concurrent `GET` → decide → `SET` lets several requests pass before any write lands | Refill, consume, and persist run inside **one Redis Lua script** (`EVAL`)         |
 | **Burst vs sustained rate** | Fixed windows allow edge bursts; naive counters feel either too strict or too loose | **Token bucket**: allow short bursts up to capacity, then refill at a steady rate |
-| **Inconsistent decisions** | Two servers can disagree on remaining quota | Redis is the authority; the app only interprets `allowed` / denied |
+| **Inconsistent decisions**  | Two servers can disagree on remaining quota                                         | Redis is the authority; the app only interprets `allowed` / denied                |
 
 This is a **demo / reference implementation** of that pattern for `GET /rate-limiter/token-bucket`, not a full gateway product.
 
@@ -90,14 +90,14 @@ flowchart TD
 
 ### Layer responsibilities
 
-| Layer | Location | Role |
-| --- | --- | --- |
-| Boot | `src/index.ts`, `src/config.ts` | Load env, start Express, log routes |
-| HTTP | `src/express-server.ts`, `src/routes/` | Mount `/health` and `/rate-limiter/*` |
-| Middleware | `src/middleware/rate-limiter/` | Run the check before the handler; map errors to HTTP |
-| Domain helpers | `src/helpers/rate-limiter/` | Pick algorithm, build Redis key, interpret allow/deny |
-| Config | `src/conf/rate-limiting/` | Per-route / per-method limits |
-| Infrastructure | `src/lib/redis.ts`, `src/lib/scripts/` | Upstash client + Lua script |
+| Layer          | Location                               | Role                                                  |
+| -------------- | -------------------------------------- | ----------------------------------------------------- |
+| Boot           | `src/index.ts`, `src/config.ts`        | Load env, start Express, log routes                   |
+| HTTP           | `src/express-server.ts`, `src/routes/` | Mount `/health` and `/rate-limiter/*`                 |
+| Middleware     | `src/middleware/rate-limiter/`         | Run the check before the handler; map errors to HTTP  |
+| Domain helpers | `src/helpers/rate-limiter/`            | Pick algorithm, build Redis key, interpret allow/deny |
+| Config         | `src/conf/rate-limiting/`              | Per-route / per-method limits                         |
+| Infrastructure | `src/lib/redis.ts`, `src/lib/scripts/` | Upstash client + Lua script                           |
 
 ### Request path (happy / denied)
 
@@ -135,10 +135,10 @@ sequenceDiagram
 
 ## API
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness / process metadata |
-| `GET` | `/rate-limiter/token-bucket` | Demo endpoint protected by the token bucket |
+| Method | Path                         | Description                                 |
+| ------ | ---------------------------- | ------------------------------------------- |
+| `GET`  | `/health`                    | Liveness / process metadata                 |
+| `GET`  | `/rate-limiter/token-bucket` | Demo endpoint protected by the token bucket |
 
 **Allowed (200):**
 
@@ -200,12 +200,12 @@ UPSTASH_REDIS_REST_URL=https://....upstash.io
 UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `UPSTASH_REDIS_REST_URL` | Yes | Upstash Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Yes | Upstash REST token |
-| `PORT` | No | Listen port (default `3000`) |
-| `NODE_ENV` | No | Exposed on `/health` (default `development`) |
+| Variable                   | Required | Description                                  |
+| -------------------------- | -------- | -------------------------------------------- |
+| `UPSTASH_REDIS_REST_URL`   | Yes      | Upstash Redis REST URL                       |
+| `UPSTASH_REDIS_REST_TOKEN` | Yes      | Upstash REST token                           |
+| `PORT`                     | No       | Listen port (default `3000`)                 |
+| `NODE_ENV`                 | No       | Exposed on `/health` (default `development`) |
 
 The Redis client is created at import time. Missing Upstash credentials prevent the server from starting.
 
@@ -216,12 +216,12 @@ npm install
 npm run dev
 ```
 
-| Script | Description |
-| --- | --- |
-| `npm run dev` | Dev server with reload (`tsx watch`) |
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm run typecheck` | Typecheck without emit |
-| `npm run start` | Run with `tsx` |
+| Script              | Description                          |
+| ------------------- | ------------------------------------ |
+| `npm run dev`       | Dev server with reload (`tsx watch`) |
+| `npm run build`     | Compile TypeScript to `dist/`        |
+| `npm run typecheck` | Typecheck without emit               |
+| `npm run start`     | Run with `tsx`                       |
 
 On boot you should see:
 
@@ -249,4 +249,6 @@ Repeat the second call more than `maxRequests` times quickly to observe **429** 
 - **Lua atomicity** is what makes the limit correct under concurrent requests.
 - **Token bucket** is what makes the limit usable: bursts up to capacity, then a predictable refill rate.
 - Limits are currently **per IP** (plus route and method). Extending to API keys or user IDs means changing how the Redis key is built.
-- Bucket keys are stored without TTL; inactive keys remain until deleted. Adding expiry is a natural follow-up for production use.
+- Bucket keys use a **sliding idle TTL** equal to the refill window (`timeWindowSeconds`). After that idle period Redis evicts the key; the next request recreates a full bucket, which matches a fully refilled one.
+- **Fail-closed** on Redis outages: if the rate-limit check cannot run, the API returns **503** (with `Retry-After`) instead of allowing traffic through.
+- URL redirects use a Redis lock on cache miss so concurrent requests for the same short code do not stampede Postgres.

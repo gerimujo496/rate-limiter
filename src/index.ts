@@ -1,10 +1,12 @@
 import { createExpressApp } from "./express-server.js";
 import { APP_ROUTES } from "./conf/routes.js";
 import { loadConfig } from "./config.js";
+import { startWebhookWorker } from "./workers/webhook.worker.js";
 
 async function start(): Promise<void> {
   const config = loadConfig();
   const app = createExpressApp(config);
+  const webhookWorker = startWebhookWorker();
 
   await new Promise<void>((resolve, reject) => {
     const server = app.listen(config.port, "0.0.0.0", () => resolve());
@@ -12,11 +14,24 @@ async function start(): Promise<void> {
   });
 
   console.log(`Server listening on http://localhost:${config.port} using express`);
+  console.log("Webhook worker started");
   console.log("Registered routes:");
 
   for (const route of APP_ROUTES) {
     console.log(`${route.method} ${route.path}`);
   }
+
+  const shutdown = async () => {
+    await webhookWorker.close();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
 }
 
 start().catch((error: unknown) => {

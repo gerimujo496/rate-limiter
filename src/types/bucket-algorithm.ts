@@ -10,4 +10,11 @@ export type RequestsUsage = {
   lastRefillTimestamp: number;
 };
 
+export type RateLimitResult = {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  retryAfterSeconds: number;
+};
+
 export type RateLimitConfig = Map<Route, Map<HttpMethod, RateLimitPolicy>>;

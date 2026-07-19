@@ -4,7 +4,10 @@ import { checkRequestRateLimitBucketAlgorithm } from "./bucket-algorithm.js";
 import { extractRequestDetails } from "../../utils/extractRequestDetails.js";
 import { Route } from "../../conf/routes.js";
 import { BadRequestError } from "../../utils/error.js";
-import { RateLimitConfig } from "../../types/bucket-algorithm.js";
+import {
+  RateLimitConfig,
+  RateLimitResult,
+} from "../../types/bucket-algorithm.js";
 
 export enum RateLimitAlgorithm {
   TokenBucket = "token-bucket",
@@ -12,12 +15,12 @@ export enum RateLimitAlgorithm {
 
 export const RateLimitIpKeyPrefix = "rate-limit-ip:";
 
-export const hasExceededRequestRateLimit = async (
+export const evaluateRequestRateLimit = async (
   algorithm: RateLimitAlgorithm,
   request: Request,
   route: Route,
   config: RateLimitConfig,
-): Promise<boolean> => {
+): Promise<RateLimitResult> => {
   const requestDetails = await extractRequestDetails(request);
 
   if (!requestDetails) {
@@ -28,5 +31,5 @@ export const hasExceededRequestRateLimit = async (
     return checkRequestRateLimitBucketAlgorithm(requestDetails, route, config);
   }
 
-  return false;
+  throw new BadRequestError(`Unsupported rate limit algorithm: ${algorithm}`);
 };

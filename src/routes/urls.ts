@@ -1,28 +1,19 @@
 import { Router } from "express";
 import { Route } from "../conf/routes.js";
-import { createUrl,  getAllUrls, getNextUrlId, getUrlByShortUrl, parseLongUrl } from "../helpers/urls.js";
+import { createUrlBodySchema, shortUrlParamSchema } from "../schemas/url.js";
+import { errorHandler } from "../utils/error.js";
+import { parseSchema } from "../utils/validation.js";
 import {
-  BadRequestError,
-  errorHandler,
- 
-} from "../utils/error.js";
-import { returnLongUrl, returnShortUrl } from "../services/url-shortener.service.js";
-
-
+  returnLongUrl,
+  returnShortUrl,
+} from "../services/url-shortener.service.js";
 
 export function createUrlsRouter() {
   const router = Router();
 
-
-
   router.get(`${Route.ShortUrl}/:shortUrl`, async (request, response) => {
     try {
-      const shortUrl = request.params.shortUrl;
-
-      if (!shortUrl) {
-        throw new BadRequestError("short_url is required.");
-      }
-
+      const { shortUrl } = parseSchema(shortUrlParamSchema, request.params);
       const longUrl = await returnLongUrl(shortUrl);
       response.redirect(308, longUrl);
     } catch (error) {
@@ -33,13 +24,13 @@ export function createUrlsRouter() {
 
   router.post(Route.Urls, async (request, response) => {
     try {
-      const longUrl = parseLongUrl(request.body);
-     
+      const { long_url: longUrl } = parseSchema(
+        createUrlBodySchema,
+        request.body,
+      );
       const shortUrl = await returnShortUrl(longUrl);
-      
 
-
-      response.status(201).json({shortUrl});
+      response.status(201).json({ shortUrl });
     } catch (error) {
       if (
         error &&
@@ -58,4 +49,3 @@ export function createUrlsRouter() {
 
   return router;
 }
-

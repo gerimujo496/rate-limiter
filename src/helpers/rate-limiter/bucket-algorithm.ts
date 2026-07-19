@@ -3,16 +3,20 @@ import { ExtractedRequestDetails } from "../../utils/extractRequestDetails.js";
 import { Route } from "../../conf/routes.js";
 import {
   RateLimitConfigError,
+  RateLimitUnavailableError,
   validateRequestDetailsOrThrowError,
 } from "../../utils/error.js";
-import { RateLimitConfig } from "../../types/bucket-algorithm.js";
+import {
+  RateLimitConfig,
+  RateLimitResult,
+} from "../../types/bucket-algorithm.js";
 import { RateLimitIpKeyPrefix } from "./index.js";
 
 export async function checkRequestRateLimitBucketAlgorithm(
   requestDetails: ExtractedRequestDetails,
   route: Route,
   config: RateLimitConfig,
-): Promise<boolean> {
+): Promise<RateLimitResult> {
   validateRequestDetailsOrThrowError(requestDetails);
 
   const { ip, httpMethod } = requestDetails;
@@ -27,11 +31,19 @@ export async function checkRequestRateLimitBucketAlgorithm(
 
   const redisKey = [RateLimitIpKeyPrefix, route, httpMethod, ip].join(":");
 
-  const allowed = await executeRateLimitScript(
-    redisKey,
-    maxRequests,
-    timeWindowSeconds,
-  );
-
-  return !allowed;
+  try {
+    return await executeRateLimitScript(
+      redisKey,
+      maxRequests,
+      timeWindowSeconds,
+    );
+  } catch (error) {
+    // Fail-closed: if Redis cannot answer, reject the request rather than
+    // letting traffic bypass the limiter.
+    console.error(
+      `Rate limit check failed for ${route} ${httpMethod} (fail-closed):`,
+      error,
+    );
+    throw new RateLimitUnavailableError();
+  }
 }

@@ -1,5 +1,6 @@
 import { Route } from "../conf/routes.js";
 import { ExtractedRequestDetails } from "./extractRequestDetails.js";
+import { ZodError } from "zod";
 
 export class RateLimitConfigError extends Error {
   constructor(route: Route, httpMethod: ExtractedRequestDetails["httpMethod"]) {
@@ -31,11 +32,29 @@ export class RateLimitExceededError extends Error {
   }
 }
 
+export class RateLimitUnavailableError extends Error {
+  constructor(
+    message = "Rate limiter unavailable. Request rejected.",
+  ) {
+    super(message);
+    this.name = "RateLimitUnavailableError";
+  }
+}
+
 export class NotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "NotFoundError";
   }
+}
+
+function formatZodError(error: ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "body";
+      return `${path}: ${issue.message}`;
+    })
+    .join("; ");
 }
 
 export const errorHandler = (
@@ -46,6 +65,12 @@ export const errorHandler = (
   }
   if (error instanceof RateLimitExceededError) {
     return { status: 429, message: error.message };
+  }
+  if (error instanceof RateLimitUnavailableError) {
+    return { status: 503, message: error.message };
+  }
+  if (error instanceof ZodError) {
+    return { status: 400, message: formatZodError(error) };
   }
   if (error instanceof BadRequestError) {
     return { status: 400, message: error.message };
