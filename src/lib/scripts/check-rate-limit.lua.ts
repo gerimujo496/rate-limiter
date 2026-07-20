@@ -45,7 +45,8 @@ else
     end
 
     -- Corrupt or legacy values: reset to a full bucket.
-    if not currentTokens or not lastRefillTimestamp then
+    -- Use explicit nil checks: tokenCount may legitimately be 0.
+    if currentTokens == nil or lastRefillTimestamp == nil then
         currentTokens = capacity
         lastRefillTimestamp = currentTimeSeconds
     end

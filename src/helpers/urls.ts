@@ -2,6 +2,39 @@ import { query } from "../lib/db.js";
 import { UrlRecord } from "../types/url.js";
 import { BadRequestError } from "../utils/error.js";
 
+export async function getNextUrlId(): Promise<number> {
+  const result = await query<{ next_id: string }>(
+    `
+      SELECT CASE
+        WHEN is_called THEN last_value + 1
+        ELSE last_value
+      END::bigint AS next_id
+      FROM urls_id_seq
+    `,
+  );
+
+  return Number(result.rows[0].next_id);
+}
+
+export async function createUrl(
+  longUrl: string,
+  shortUrl: string,
+): Promise<UrlRecord> {
+  const inserted = await insertLongUrl(longUrl);
+
+  if (inserted?.short_url) {
+    return inserted;
+  }
+
+  const row = inserted ?? (await getUrlByLongUrl(longUrl));
+
+  if (!row) {
+    throw new BadRequestError("Failed to create URL.");
+  }
+
+  return updateShortUrl(row.id, shortUrl);
+}
+
 export const getUrlByLongUrl = async (
   longUrl: string,
 ): Promise<UrlRecord | null> => {

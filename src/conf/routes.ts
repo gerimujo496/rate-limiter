@@ -5,7 +5,6 @@ export enum Route {
   RateLimiter = "/rate-limiter",
   Health = "/health",
   TokenBucket = "/token-bucket",
-  LeakingBucket = "/leaking-bucket",
   Urls = "/urls",
   ShortUrl = "/shorturl",
   Webhooks = "/webhooks",
