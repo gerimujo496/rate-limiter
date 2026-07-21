@@ -5,7 +5,7 @@ import { apiRateLimit } from "../../src/middleware/rate-limiter/bucket-algorithm
 export function createRateLimitTestApp() {
   const app = express();
 
-  app.set("trust proxy", true);
+  app.set("trust proxy", 1);
   app.use(apiRateLimit);
 
   app.get(`${Route.RateLimiter}${Route.TokenBucket}`, (_request, response) => {

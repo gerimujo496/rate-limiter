@@ -173,4 +173,32 @@ describe.runIf(await isTestRedisAvailable())("token bucket Lua script", () => {
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(REFILL_PERIOD_SECONDS);
   });
+
+  it("uses Redis TIME when no clock override is provided", async () => {
+    const key = "test:bucket:redis-time";
+
+    const result = await evalTokenBucketScript(
+      redis,
+      key,
+      CAPACITY,
+      REFILL_PERIOD_SECONDS,
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(CAPACITY - 1);
+
+    const stored = await redis.get(key);
+    expect(stored).toBeTruthy();
+
+    const bucket = JSON.parse(stored as string) as {
+      lastRefillTimestamp: number;
+    };
+    const redisTime = await redis.time();
+    const redisSeconds = Number(redisTime[0]);
+
+    expect(bucket.lastRefillTimestamp).toBeGreaterThan(0);
+    expect(
+      Math.abs(bucket.lastRefillTimestamp - redisSeconds),
+    ).toBeLessThanOrEqual(2);
+  });
 });

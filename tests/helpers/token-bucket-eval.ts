@@ -30,15 +30,23 @@ export async function isTestRedisAvailable(): Promise<boolean> {
 
 type TokenBucketLuaResult = [allowed: number, remainingTokens: number, retryAfterSeconds: number];
 
+/**
+ * @param currentTimeSeconds - Positive unix seconds to pin refill math in tests.
+ *   Omit / pass 0 to use Redis TIME (production path).
+ */
 export async function evalTokenBucketScript(
   redis: Redis,
   key: string,
   maxRequests: number,
   refillPeriodSeconds: number,
-  currentTimeSeconds: number,
+  currentTimeSeconds?: number,
   requestedTokens = 1,
 ): Promise<Pick<RateLimitResult, "allowed" | "remaining" | "retryAfterSeconds">> {
   const keyTtlSeconds = rateLimitKeyTtlSeconds(refillPeriodSeconds);
+  const timeArg =
+    currentTimeSeconds !== undefined && currentTimeSeconds > 0
+      ? currentTimeSeconds.toString()
+      : "";
 
   const result = (await redis.eval(
     tokenBucketLuaScript,
@@ -46,7 +54,7 @@ export async function evalTokenBucketScript(
     key,
     maxRequests.toString(),
     refillPeriodSeconds.toString(),
-    currentTimeSeconds.toString(),
+    timeArg,
     requestedTokens.toString(),
     keyTtlSeconds.toString(),
   )) as TokenBucketLuaResult;
@@ -69,12 +77,12 @@ export async function executeRateLimitScriptForTests(
   await redis.connect();
 
   try {
+    // Production path: empty time override => Redis TIME inside Lua.
     const result = await evalTokenBucketScript(
       redis,
       key,
       maxRequests,
       refillPeriodSeconds,
-      Math.floor(Date.now() / 1000),
     );
 
     return {

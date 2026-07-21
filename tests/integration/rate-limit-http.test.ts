@@ -79,4 +79,27 @@ describe.runIf(await isTestRedisAvailable())("rate limit HTTP flow", () => {
     expect(denied.headers["x-ratelimit-remaining"]).toBe("0");
     expect(Number(denied.headers["retry-after"])).toBeGreaterThanOrEqual(1);
   });
+
+  it("keys separate quotas on X-Forwarded-For client IPs behind trust proxy", async () => {
+    const app = createRateLimitTestApp();
+    const path = `${Route.RateLimiter}${Route.TokenBucket}`;
+
+    for (let index = 0; index < 10; index += 1) {
+      const allowed = await request(app)
+        .get(path)
+        .set("X-Forwarded-For", "203.0.113.10");
+      expect(allowed.status).toBe(200);
+    }
+
+    const deniedForFirstClient = await request(app)
+      .get(path)
+      .set("X-Forwarded-For", "203.0.113.10");
+    expect(deniedForFirstClient.status).toBe(429);
+
+    const allowedForSecondClient = await request(app)
+      .get(path)
+      .set("X-Forwarded-For", "203.0.113.20");
+    expect(allowedForSecondClient.status).toBe(200);
+    expect(allowedForSecondClient.headers["x-ratelimit-remaining"]).toBe("9");
+  });
 });

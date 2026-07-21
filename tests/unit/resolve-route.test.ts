@@ -28,7 +28,14 @@ describe("resolveRateLimitRoute", () => {
     expect(resolveRateLimitRoute("/unknown")).toBeNull();
   });
 
-  it("ignores query strings when resolving the route", () => {
-    expect(resolveRateLimitRoute("/health?probe=1")).toBe(Route.Health);
+  it("exempts /health and nested health probes from rate limiting", () => {
+    expect(resolveRateLimitRoute("/health")).toBeNull();
+    expect(resolveRateLimitRoute("/health?probe=1")).toBeNull();
+    expect(resolveRateLimitRoute("/health/ready")).toBeNull();
+  });
+
+  it("exempts /metrics from rate limiting", () => {
+    expect(resolveRateLimitRoute("/metrics")).toBeNull();
+    expect(resolveRateLimitRoute("/metrics/prometheus")).toBeNull();
   });
 });

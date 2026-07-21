@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.github
+.env
+.env.*
+!.env.example
+coverage
+*.log
+tests
+vitest.config.ts
+README.md
+**/*.md
+agent-transcripts
+.cursor

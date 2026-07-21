@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import type { HttpMethod } from "../types/http-method.js";
+import { getClientIp } from "../middleware/helper.js";
 
 const HTTP_METHODS: readonly HttpMethod[] = [
   "GET",
@@ -24,7 +25,7 @@ export function isHttpMethod(value: string): value is HttpMethod {
 export async function extractRequestDetails(
   request: Request,
 ): Promise<ExtractedRequestDetails | null> {
-  const ip = request.ip;
+  const ip = getClientIp(request);
   const httpMethod = request.method.toUpperCase();
 
   if (!ip || !isHttpMethod(httpMethod)) {

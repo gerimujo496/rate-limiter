@@ -2,7 +2,7 @@
 
 A TypeScript Express service that demonstrates **shared, consistent rate limiting across horizontally scaled API instances**. The core design problem: when each replica keeps its own in-memory counter, clients can multiply their effective quota and concurrent requests can race on read-modify-write. This project solves that with a **single source of truth in Redis**, updated **atomically via Lua**.
 
-The rate limiter runs as **global middleware** on every registered route. Supporting workloads (URL shortener, users CRUD, async webhooks) exercise the same middleware under realistic API traffic.
+The limiter runs as **global middleware** on registered routes. The primary demo surface is `GET /rate-limiter/token-bucket`.
 
 ---
 
@@ -42,26 +42,18 @@ flowchart TD
 
     R --> L[Lua token-bucket script]
     L --> R
-
-    A1 --> PG[(PostgreSQL)]
-    A2 --> PG
-
-    A1 --> Q[BullMQ webhook worker]
-    Q --> R2[(Redis TCP / Upstash)]
 ```
 
 ### Layer responsibilities
 
 | Layer | Location | Role |
 | --- | --- | --- |
-| Boot | `src/index.ts`, `src/config.ts` | Load env, start Express, start webhook worker |
-| HTTP | `src/express-server.ts`, `src/routes/` | Mount health, rate-limiter demo, URLs, users, webhooks |
+| Boot | `src/index.ts`, `src/config.ts` | Load env, start Express |
+| HTTP | `src/express-server.ts`, `src/routes/` | Mount handlers behind the middleware |
 | Middleware | `src/middleware/rate-limiter/` | Resolve route policy, run limit check, set headers, map errors to HTTP |
 | Domain helpers | `src/helpers/rate-limiter/` | Build Redis key, call Lua script, interpret allow/deny |
 | Config | `src/conf/rate-limiting/` | Per-route / per-method token-bucket policies |
 | Infrastructure | `src/lib/redis.ts`, `src/lib/scripts/` | Upstash REST client + Lua script |
-| Persistence | `src/lib/db.ts`, `docker/postgres/` | Postgres for URLs, users, webhooks |
-| Async delivery | `src/lib/bullmq.ts`, `src/workers/` | BullMQ worker delivers webhook payloads with retries |
 
 ### Request path (allowed / denied / unavailable)
 
@@ -93,7 +85,7 @@ sequenceDiagram
 ```
 
 1. `apiRateLimit` runs before every handler on registered routes.
-2. `resolveRateLimitRoute` maps the path to a policy (longest-prefix match for nested routes).
+2. `resolveRateLimitRoute` maps the path to a policy (longest-prefix match for nested paths).
 3. `evaluateRequestRateLimit` builds the Redis key and calls the Lua script.
 4. Middleware sets standard rate-limit headers and either calls `next()`, returns **429**, or returns **503** on Redis failure.
 
@@ -135,28 +127,18 @@ Policies live in `src/conf/rate-limiting/bucket-algorithm.ts`.
 
 ---
 
-## API surface
+## API (rate limiter demo)
 
-All routes below pass through the rate limiter middleware.
+These are the endpoints this README documents. All pass through `apiRateLimit`.
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness / process metadata |
 | `GET` | `/rate-limiter/token-bucket` | Demo endpoint for the token-bucket limiter |
-| `POST` | `/urls` | Create a short URL |
-| `GET` | `/shorturl/:shortUrl` | Redirect to the long URL |
-| `GET` | `/users` | List users |
-| `GET` | `/users/:id` | Get user by id |
-| `POST` | `/users` | Create user (triggers webhooks) |
-| `PUT` | `/users/:id` | Update user |
-| `DELETE` | `/users/:id` | Delete user |
-| `POST` | `/webhooks` | Register a webhook callback URL |
-| `POST` | `/webhooks/handlers/ok` | Demo handler — returns 200 |
-| `POST` | `/webhooks/handlers/fail` | Demo handler — returns 500 (for retry testing) |
 
 ### Rate limit responses
 
-**Allowed** — handler runs; headers include:
+**Allowed (200)** — headers include:
 
 ```http
 X-RateLimit-Limit: 10
@@ -177,32 +159,42 @@ X-RateLimit-Remaining: 9
 
 With `Retry-After: 5`
 
+### Demo response (200)
+
+```json
+{
+  "ip": "127.0.0.1",
+  "service": "rate-limiter",
+  "framework": "express",
+  "algorithm": "token-bucket",
+  "route": "/rate-limiter/token-bucket",
+  "message": "Request allowed by token-bucket rate limiter.",
+  "status": "ok"
+}
+```
+
+Repeat the token-bucket request more than 10 times quickly to observe **429** responses.
+
 ---
 
 ## Project layout
 
 ```text
 src/
-  conf/                    # Routes and rate-limit policies
-  routes/                  # Express routers
-  middleware/rate-limiter/ # Global rate-limit gate + headers
-  helpers/
-    rate-limiter/          # Algorithm orchestration, route resolution
-    urls.ts / users.ts / webhooks.ts
-  services/                # URL shortener, webhook trigger
-  workers/                 # BullMQ webhook delivery worker
+  conf/
+    rate-limiting/         # Per-route token-bucket policies
+    routes.ts              # Route enum
+  middleware/rate-limiter/ # Global gate + rate-limit headers
+  helpers/rate-limiter/    # Key building, route resolution, Lua orchestration
   lib/
-    redis.ts               # Upstash REST client + Lua EVAL
-    db.ts                  # Postgres pool
-    bullmq.ts              # Job queue
+    redis.ts               # Upstash REST client + EVAL wrapper
     scripts/               # Lua token-bucket script
-  utils/                   # Request extraction, validation, errors
+  routes/                  # Express routers (demo + other routes in repo)
+  utils/                   # Request extraction and errors
   types/                   # Shared TypeScript types
 tests/
   unit/                    # Middleware, headers, config (mocked Redis)
   integration/             # Lua correctness, concurrency, HTTP flow
-docker/
-  postgres/                # Schema init scripts
 .github/workflows/         # CI (typecheck, build, tests)
 ```
 
@@ -212,8 +204,8 @@ docker/
 
 - Node.js **22+**
 - npm
-- [Upstash Redis](https://upstash.com/) (REST URL + token) for running the app
-- Docker (optional) — local Postgres and Redis for development/testing
+- [Upstash Redis](https://upstash.com/) (REST URL + token)
+- Docker (optional) — local Redis for integration tests
 
 ---
 
@@ -223,29 +215,23 @@ Copy `.env.example` to `.env` and fill in your values:
 
 ```env
 PORT=3000
-BASE_URL=http://localhost:3000
 NODE_ENV=development
 
-# Required to run the app
+# Required to run the rate limiter
 UPSTASH_REDIS_REST_URL=https://....upstash.io
 UPSTASH_REDIS_REST_TOKEN=...
 
-# Required for URL shortener, users, webhooks
-DATABASE_URL=postgresql://postgres:postgres@localhost:15432/url_shortener
-
-# Local Redis for integration tests
+# Required for integration tests only
 TEST_REDIS_URL=redis://127.0.0.1:6379
 ```
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `UPSTASH_REDIS_REST_URL` | Yes (app) | Upstash Redis REST URL for rate limiting + cache |
-| `UPSTASH_REDIS_REST_TOKEN` | Yes (app) | Upstash REST token |
-| `DATABASE_URL` | Yes (app) | Postgres connection string |
-| `BASE_URL` | Yes (app) | Public base URL for generated short links |
+| `UPSTASH_REDIS_REST_URL` | Yes | Upstash Redis REST URL |
+| `UPSTASH_REDIS_REST_TOKEN` | Yes | Upstash REST token |
 | `PORT` | No | Listen port (default `3000`) |
+| `TRUST_PROXY` | No | Proxy hops to trust for client IP (default `1`; `false` disables) |
 | `TEST_REDIS_URL` | Tests only | Local Redis for integration tests |
-| `UPSTASH_REDIS_URL` | No | BullMQ TCP Redis URL (optional; derived from Upstash REST if unset) |
 
 Missing Upstash credentials prevent the server from starting. A `.env` file is optional — env vars can also be set directly (e.g. in CI).
 
@@ -253,13 +239,11 @@ Missing Upstash credentials prevent the server from starting. A `.env` file is o
 
 ## Run locally
 
-### Start dependencies
+### Start Redis for tests (optional)
 
 ```bash
-docker compose up -d
+docker compose up -d redis
 ```
-
-This starts **Redis** (port `6379`) and **Postgres** (port `15432`).
 
 ### Start the app
 
@@ -287,8 +271,6 @@ curl http://localhost:3000/health
 curl http://localhost:3000/rate-limiter/token-bucket
 ```
 
-Repeat the second call more than 10 times quickly to observe **429** responses.
-
 ---
 
 ## Testing
@@ -315,15 +297,17 @@ CI runs on every push and pull request via GitHub Actions (typecheck, build, ful
 
 - **Shared state in Redis** makes the limit correct across horizontally scaled instances.
 - **Lua atomicity** makes the limit correct under concurrent requests.
+- **Redis TIME** drives refill timestamps so app-instance clock skew cannot desync buckets.
+- **`trust proxy`** + `request.ip` key rate limits on the real client IP behind a load balancer (`TRUST_PROXY`, default `1` hop).
 - **Token bucket** allows bursts up to capacity, then a predictable refill rate.
 - Limits are **per IP** (plus route and method). Extending to API keys or user IDs means changing how the Redis key is built.
 - Bucket keys use a **sliding idle TTL** equal to the refill window. After idle expiry, the next request recreates a full bucket.
 - **Fail-closed** on Redis outages: the API returns **503** instead of allowing traffic through.
-- **Webhooks** use BullMQ with retries/backoff; demo handlers (`ok` / `fail`) make delivery behavior observable.
+- **`/health` and `/metrics` are exempt** from rate limiting so probes and scrapers cannot starve themselves.
 - Integration tests caught real Lua edge cases (e.g. treating `0` tokens as a missing value incorrectly reset the bucket to full).
 
 ---
 
 ## Tech stack
 
-Express 5 · TypeScript · Upstash Redis · Lua · PostgreSQL · BullMQ · Zod · Vitest
+Express 5 · TypeScript · Upstash Redis · Lua · Vitest

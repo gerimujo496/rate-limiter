@@ -4,6 +4,7 @@ import { HttpMethod } from "../types/http-method.js";
 export enum Route {
   RateLimiter = "/rate-limiter",
   Health = "/health",
+  Metrics = "/metrics",
   TokenBucket = "/token-bucket",
   Urls = "/urls",
   ShortUrl = "/shorturl",

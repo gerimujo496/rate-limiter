@@ -3,6 +3,7 @@ local key = KEYS[1]
 
 local capacity = tonumber(ARGV[1])
 local refillPeriodSeconds = tonumber(ARGV[2])
+-- Optional override for deterministic tests. Production passes "" so Redis TIME is used.
 local currentTimeSeconds = tonumber(ARGV[3])
 local requestedTokens = tonumber(ARGV[4])
 local keyTtlSeconds = tonumber(ARGV[5])
@@ -15,16 +16,23 @@ if not refillPeriodSeconds or refillPeriodSeconds <= 0 then
     return redis.error_reply("refillPeriodSeconds must be a positive number")
 end
 
-if not currentTimeSeconds then
-    return redis.error_reply("currentTimeSeconds must be a number")
-end
-
 if not requestedTokens or requestedTokens <= 0 then
     return redis.error_reply("requestedTokens must be a positive number")
 end
 
 if not keyTtlSeconds or keyTtlSeconds <= 0 then
     return redis.error_reply("keyTtlSeconds must be a positive number")
+end
+
+-- Use Redis TIME so refill is independent of app-instance clock skew.
+-- A positive ARGV[3] overrides TIME for deterministic integration tests only.
+if not currentTimeSeconds or currentTimeSeconds <= 0 then
+    local redisTime = redis.call("TIME")
+    currentTimeSeconds = tonumber(redisTime[1])
+end
+
+if not currentTimeSeconds then
+    return redis.error_reply("currentTimeSeconds must be a number")
 end
 
 local storedBucket = redis.call("GET", key)

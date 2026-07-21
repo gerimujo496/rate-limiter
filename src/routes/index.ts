@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getIpAdressFromRequest } from "../middleware/helper.js";
+import { getClientIp } from "../middleware/helper.js";
 import { Route } from "../conf/routes.js";
 
 export function createRateLimiterExpressRouter() {
@@ -7,7 +7,7 @@ export function createRateLimiterExpressRouter() {
 
   router.get(Route.TokenBucket, (request, response) => {
     response.status(200).json({
-      ip: getIpAdressFromRequest(request),
+      ip: getClientIp(request),
       service: "rate-limiter",
       framework: "express",
       algorithm: "token-bucket",

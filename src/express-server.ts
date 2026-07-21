@@ -12,6 +12,8 @@ export function createExpressApp(config: AppConfig): Application {
   const app = express();
 
   app.disable("x-powered-by");
+  // Trust the load balancer so request.ip / rate-limit keys use the real client IP.
+  app.set("trust proxy", config.trustProxy);
   app.use(express.json());
   app.use(apiRateLimit);
 

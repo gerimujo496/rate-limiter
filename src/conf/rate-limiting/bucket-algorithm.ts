@@ -28,7 +28,6 @@ function createMethodPolicies(
 }
 
 export const rateLimitConfig: RateLimitConfig = new Map([
-  [Route.Health, createMethodPolicies(["GET"])],
   [Route.TokenBucket, createMethodPolicies(["GET", "POST"])],
   [Route.Urls, createMethodPolicies(["POST"])],
   [Route.ShortUrl, createMethodPolicies(["GET"])],

@@ -11,6 +11,21 @@ services:
       timeout: 3s
       retries: 5
 
+  # Upstash-compatible REST proxy so @upstash/redis (EVAL / rate limiter) works locally.
+  redis-http:
+    image: hiett/serverless-redis-http:latest
+    container_name: rate-limiter-redis-http
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${REDIS_HTTP_PORT:-8079}:80"
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${REDIS_HTTP_TOKEN:-local_dev_token}
+      SRH_CONNECTION_STRING: redis://redis:6379
+
   db:
     image: postgres:16-alpine
     container_name: url-shortener-db
@@ -33,6 +48,41 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+
+  app:
+    build: .
+    restart: unless-stopped
+    # Two instances on host ports 3005 and 3006 (shared Redis/DB).
+    # Override with: docker compose up -d --scale app=N
+    deploy:
+      replicas: 2
+    depends_on:
+      redis:
+        condition: service_healthy
+      redis-http:
+        condition: service_started
+      db:
+        condition: service_healthy
+    ports:
+      - "3005-3006:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-production}
+      BASE_URL: ${BASE_URL:-http://localhost:3005}
+      # Hit the published port directly (no LB in front of compose).
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Rate limiter: Upstash REST client → local HTTP proxy → Redis
+      UPSTASH_REDIS_REST_URL: http://redis-http:80
+      UPSTASH_REDIS_REST_TOKEN: ${REDIS_HTTP_TOKEN:-local_dev_token}
+      # BullMQ / webhook worker: plain TCP Redis on the compose network
+      UPSTASH_REDIS_URL: redis://redis:6379
+      TEST_REDIS_URL: redis://redis:6379
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-url_shortener}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-url_shortener}
 
 volumes:
   postgres-data:

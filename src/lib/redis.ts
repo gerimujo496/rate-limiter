@@ -86,13 +86,14 @@ export async function executeRateLimitScript(
 ): Promise<RateLimitResult> {
   const keyTtlSeconds = rateLimitKeyTtlSeconds(refillPeriodSeconds);
 
+  // Empty ARGV[3] => Lua uses redis.call("TIME") (no app clock skew).
   const result = await redis.eval<
     [string, string, string, string, string],
     TokenBucketLuaResult
   >(tokenBucketLuaScript, [key], [
     maxRequests.toString(),
     refillPeriodSeconds.toString(),
-    Math.floor(Date.now() / 1000).toString(),
+    "",
     "1",
     keyTtlSeconds.toString(),
   ]);

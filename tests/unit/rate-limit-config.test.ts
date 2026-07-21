@@ -6,7 +6,6 @@ import { checkRequestRateLimitBucketAlgorithm } from "../../src/helpers/rate-lim
 import { RateLimitConfigError } from "../../src/utils/error.js";
 
 const ROUTES_WITH_POLICIES: readonly Route[] = [
-  Route.Health,
   Route.TokenBucket,
   Route.Urls,
   Route.ShortUrl,
@@ -22,11 +21,16 @@ describe("rateLimitConfig", () => {
     expect(rateLimitConfig.get(route)?.size).toBeGreaterThan(0);
   });
 
+  it("does not define policies for probe or metrics routes", () => {
+    expect(rateLimitConfig.has(Route.Health)).toBe(false);
+    expect(rateLimitConfig.has(Route.Metrics)).toBe(false);
+  });
+
   it("throws when a route and method have no configured policy", async () => {
     await expect(
       checkRequestRateLimitBucketAlgorithm(
         { ip: "127.0.0.1", httpMethod: "PATCH" as HttpMethod },
-        Route.Health,
+        Route.TokenBucket,
         rateLimitConfig,
       ),
     ).rejects.toBeInstanceOf(RateLimitConfigError);
