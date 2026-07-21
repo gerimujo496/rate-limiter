@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: distributed_api_service
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -51,10 +55,51 @@ jobs:
       - name: Test
         run: npm test
 
+  build-and-push:
+    name: Build and push distributed_api_service
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        id: meta
+        run: |
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image=${{ env.REGISTRY }}/${owner}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
   deploy:
     name: Deploy to VPS
-    needs: test
-    # Only deploy after a successful push to the main branch (not on PRs).
+    needs: build-and-push
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
 
@@ -64,12 +109,15 @@ jobs:
         env:
           DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
           DEPLOY_BRANCH: ${{ github.ref_name }}
+          IMAGE: ${{ needs.build-and-push.outputs.image }}:${{ github.sha }}
+          GHCR_USER: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          envs: DEPLOY_PATH,DEPLOY_BRANCH
+          envs: DEPLOY_PATH,DEPLOY_BRANCH,IMAGE,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
 
@@ -78,14 +126,27 @@ jobs:
               exit 1
             fi
 
+            if [ -z "${GHCR_USER}" ] || [ -z "${GHCR_TOKEN}" ]; then
+              echo "GHCR_USERNAME and GHCR_TOKEN secrets are required to pull the image"
+              exit 1
+            fi
+
             cd "${DEPLOY_PATH}"
 
-            echo "Pulling latest code (${DEPLOY_BRANCH})..."
+            echo "Updating compose files (${DEPLOY_BRANCH})..."
             git fetch origin "${DEPLOY_BRANCH}"
             git checkout "${DEPLOY_BRANCH}"
             git pull --ff-only origin "${DEPLOY_BRANCH}"
 
-            echo "Rebuilding and starting 2 app replicas (3005 + 3006)..."
-            docker compose up -d --build --scale app=2 --remove-orphans
+            echo "Logging in to GHCR..."
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+
+            echo "Pulling ${IMAGE}..."
+            export DISTRIBUTED_API_IMAGE="${IMAGE}"
+            docker compose pull distributed_api_service
+
+            echo "Starting 2 distributed_api_service replicas (3005 + 3006)..."
+            docker compose up -d --no-build --scale distributed_api_service=2 --remove-orphans
 
             docker compose ps
+            docker logout ghcr.io || true

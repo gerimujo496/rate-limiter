@@ -49,11 +49,15 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
 
-  app:
+  # Built/pushed by CI as ghcr.io/<owner>/distributed_api_service
+  # Local: docker compose build distributed_api_service
+  # VPS:   docker compose pull && up (no --build)
+  distributed_api_service:
+    image: ${DISTRIBUTED_API_IMAGE:-ghcr.io/gerimujo496/distributed_api_service:latest}
     build: .
     restart: unless-stopped
     # Two instances on host ports 3005 and 3006 (shared Redis/DB).
-    # Override with: docker compose up -d --scale app=N
+    # Override with: docker compose up -d --scale distributed_api_service=N
     deploy:
       replicas: 2
     depends_on:

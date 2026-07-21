@@ -8,7 +8,7 @@ export function createRateLimiterExpressRouter() {
   router.get(Route.TokenBucket, (request, response) => {
     response.status(200).json({
       ip: getClientIp(request),
-      service: "rate-limiter",
+      service: "distributed_api_service",
       framework: "express",
       algorithm: "token-bucket",
       route: `${Route.RateLimiter}${Route.TokenBucket}`,

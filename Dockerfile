@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# Image: ghcr.io/<owner>/distributed_api_service
 
 FROM node:22-alpine AS deps
 WORKDIR /app

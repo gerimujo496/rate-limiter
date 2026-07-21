@@ -7,7 +7,7 @@ interface HealthResponseOptions {
 
 export function buildHealthResponse({
   nodeEnv,
-  service = "app"
+  service = "distributed_api_service"
 }: HealthResponseOptions) {
   return {
     status: "ok",

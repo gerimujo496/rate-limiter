@@ -1,9 +1,9 @@
 {
-  "name": "rate-limiting",
+  "name": "distributed_api_service",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Minimal Node HTTP server with Express and a health endpoint.",
+  "description": "Distributed API service with shared Redis token-bucket rate limiting.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",

@@ -15,7 +15,7 @@ export function startWebhookWorker(): Worker<WebhookJobData> {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": "rate-limiting-webhook",
+          "User-Agent": "distributed_api_service-webhook",
         },
         body: JSON.stringify(payload),
       });
