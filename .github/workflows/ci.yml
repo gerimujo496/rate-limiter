@@ -70,28 +70,52 @@ jobs:
       - name: Save image archive
         run: docker save "${{ env.IMAGE_NAME }}:latest" | gzip > "${{ env.IMAGE_NAME }}.tar.gz"
 
-      - name: Copy image to VPS
+      - name: Bundle compose files
+        run: |
+          mkdir -p bundle/docker/postgres
+          cp docker-compose.yml bundle/
+          cp docker/postgres/init.sql bundle/docker/postgres/
+          tar -C bundle -czf compose-bundle.tar.gz .
+
+      - name: Prepare deploy directory on VPS
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          envs: DEPLOY_PATH
+          script: |
+            set -euo pipefail
+            if [ -z "${DEPLOY_PATH}" ]; then
+              echo "VPS_DEPLOY_PATH secret is empty"
+              exit 1
+            fi
+            mkdir -p "${DEPLOY_PATH}"
+
+      - name: Copy image and compose bundle to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: ${{ env.IMAGE_NAME }}.tar.gz
+          source: "${{ env.IMAGE_NAME }}.tar.gz,compose-bundle.tar.gz"
           target: /tmp/
 
       - name: Load image and start compose
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
-          DEPLOY_BRANCH: ${{ github.ref_name }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          envs: DEPLOY_PATH,DEPLOY_BRANCH,IMAGE_NAME
+          envs: DEPLOY_PATH,IMAGE_NAME
           script: |
             set -euo pipefail
 
@@ -104,12 +128,17 @@ jobs:
             gunzip -c "/tmp/${IMAGE_NAME}.tar.gz" | docker load
             rm -f "/tmp/${IMAGE_NAME}.tar.gz"
 
+            echo "Extracting compose files into ${DEPLOY_PATH}..."
+            tar -C "${DEPLOY_PATH}" -xzf /tmp/compose-bundle.tar.gz
+            rm -f /tmp/compose-bundle.tar.gz
+
             cd "${DEPLOY_PATH}"
 
-            echo "Updating compose files (${DEPLOY_BRANCH})..."
-            git fetch origin "${DEPLOY_BRANCH}"
-            git checkout "${DEPLOY_BRANCH}"
-            git pull --ff-only origin "${DEPLOY_BRANCH}"
+            if [ ! -f .env ]; then
+              echo "Missing ${DEPLOY_PATH}/.env on the VPS."
+              echo "Create it once on the server (from .env.example), then re-run this workflow."
+              exit 1
+            fi
 
             echo "Starting 2 ${IMAGE_NAME} replicas (3005 + 3006)..."
             docker compose up -d --scale "${IMAGE_NAME}=2" --remove-orphans
