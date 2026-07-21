@@ -443,6 +443,8 @@ npm test
 
 ### Deployment architecture (VPS)
 
+Traffic reaches the VPS through an **nginx load balancer** on `api.gerimujo.com`, which round-robins / balances across two API containers (`:3005` and `:3006`). Both replicas share Redis and Postgres so rate limits and queues stay consistent.
+
 ```mermaid
 flowchart LR
     Dev[Push to main] --> GHA[GitHub Actions]
@@ -450,13 +452,17 @@ flowchart LR
     Test --> Image[Build distributed_api_service image]
     Image --> VPS[Load image on VPS]
     VPS --> Up[compose up --scale 2]
-    Up --> C1[:3005]
-    Up --> C2[:3006]
-    Nginx[nginx] --> C1
-    Nginx --> C2
+    Up --> C1[API replica :3005]
+    Up --> C2[API replica :3006]
+
+    Clients[Clients] --> LB[nginx load balancer<br/>api.gerimujo.com]
+    LB -->|X-Forwarded-For| C1
+    LB -->|X-Forwarded-For| C2
+    C1 --> Data[(Shared Redis + Postgres)]
+    C2 --> Data
 ```
 
-nginx example: [`deploy/nginx.conf.example`](deploy/nginx.conf.example)
+nginx load-balancer example: [`deploy/nginx.conf.example`](deploy/nginx.conf.example)
 
 ---
 
