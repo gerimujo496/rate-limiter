@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Image: ghcr.io/<owner>/distributed_api_service
+# Image tag used by compose: distributed_api_service:latest
 
 FROM node:22-alpine AS deps
 WORKDIR /app
