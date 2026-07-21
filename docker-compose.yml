@@ -69,8 +69,9 @@ services:
     environment:
       PORT: 3000
       NODE_ENV: ${NODE_ENV:-production}
-      BASE_URL: ${BASE_URL:-http://localhost:3005}
-      TRUST_PROXY: ${TRUST_PROXY:-false}
+      BASE_URL: ${BASE_URL:-https://api.gerimujo.com}
+      # 1 = trust nginx (X-Forwarded-For) for client IP / rate-limit keys
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       UPSTASH_REDIS_REST_URL: http://redis-http:80
       UPSTASH_REDIS_REST_TOKEN: ${REDIS_HTTP_TOKEN:-local_dev_token}
       UPSTASH_REDIS_URL: redis://redis:6379

@@ -1,0 +1,84 @@
+import express from "express";
+import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Route } from "../../src/conf/routes.js";
+import { createWebhookRouter } from "../../src/routes/webhook.js";
+
+vi.mock("../../src/helpers/webhooks.js", () => ({
+  insertWebhook: vi.fn(),
+  getWebhooksByMethod: vi.fn(),
+}));
+
+function createWebhookTestApp() {
+  const app = express();
+  app.use(express.json());
+  app.use(createWebhookRouter());
+  return app;
+}
+
+describe("webhook HTTP routes", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  it("registers a webhook and returns 201", async () => {
+    const { insertWebhook } = await import("../../src/helpers/webhooks.js");
+    vi.mocked(insertWebhook).mockResolvedValueOnce({
+      id: 1,
+      url: "https://example.com/hook",
+      methods: ["POST"],
+    });
+
+    const response = await request(createWebhookTestApp())
+      .post(Route.Webhooks)
+      .send({
+        url: "https://example.com/hook",
+        methods: ["POST"],
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toEqual({
+      id: 1,
+      url: "https://example.com/hook",
+      methods: ["POST"],
+    });
+    expect(insertWebhook).toHaveBeenCalledWith({
+      url: "https://example.com/hook",
+      methods: ["POST"],
+    });
+  });
+
+  it("returns 400 for invalid registration bodies", async () => {
+    const response = await request(createWebhookTestApp())
+      .post(Route.Webhooks)
+      .send({ url: "bad", methods: [] });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBeTruthy();
+  });
+
+  it("demo ok handler returns 200 with the received payload", async () => {
+    const response = await request(createWebhookTestApp())
+      .post(Route.WebhookHandlerOk)
+      .send({ event: "user.created" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("ok");
+    expect(response.body.received).toEqual({ event: "user.created" });
+  });
+
+  it("demo fail handler returns 500 for retry testing", async () => {
+    const response = await request(createWebhookTestApp())
+      .post(Route.WebhookHandlerFail)
+      .send({ event: "user.created" });
+
+    expect(response.status).toBe(500);
+    expect(response.body.status).toBe("error");
+  });
+});
