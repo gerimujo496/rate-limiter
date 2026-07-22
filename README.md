@@ -160,6 +160,12 @@ Users CRUD is **not a separate product feature** here. It exists so the webhook 
    - Intermediate retries leave the row **pending** (`success = null`)  
    Track with `GET /webhooks/deliveries/:id`.
 
+On an existing VPS database, apply the migration once:
+
+```bash
+docker exec -i url-shortener-db psql -U postgres -d url_shortener < docker/postgres/migrate-webhook-deliveries.sql
+```
+
 7. **Retries**  
    Failed deliveries retry (up to **10** attempts, **10s** fixed backoff). Demo endpoints `/webhooks/handlers/ok` and `/fail` make success vs retry behavior easy to observe.
 

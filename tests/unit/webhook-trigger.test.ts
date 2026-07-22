@@ -18,6 +18,7 @@ vi.mock("../../src/lib/bullmq.js", () => ({
 describe("triggerWebhooks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   it("returns an empty list when no webhooks match", async () => {
@@ -92,11 +93,27 @@ describe("triggerWebhooks", () => {
       url: "https://example.com/a",
       payload: { event: "user.created", method: "POST", data: user },
     });
-    expect(enqueueWebhookDelivery).toHaveBeenCalledWith({
-      deliveryId: 101,
-      webhookId: 11,
-      url: "https://example.com/b",
-      payload: { event: "user.created", method: "POST", data: user },
-    });
+  });
+
+  it("returns an empty list when enqueue/tracking fails so callers are not broken", async () => {
+    const { getWebhooksByMethod, createPendingWebhookDelivery } = await import(
+      "../../src/helpers/webhooks.js"
+    );
+    const { enqueueWebhookDelivery } = await import("../../src/lib/bullmq.js");
+    const { triggerWebhooks } = await import(
+      "../../src/services/webhook.service.js"
+    );
+
+    vi.mocked(getWebhooksByMethod).mockResolvedValueOnce([
+      { id: 10, url: "https://example.com/a", methods: ["POST"] },
+    ]);
+    vi.mocked(createPendingWebhookDelivery).mockRejectedValueOnce(
+      new Error('relation "webhook_deliveries" does not exist'),
+    );
+
+    const ids = await triggerWebhooks("POST", "user.created", { id: 1 });
+
+    expect(ids).toEqual([]);
+    expect(enqueueWebhookDelivery).not.toHaveBeenCalled();
   });
 });

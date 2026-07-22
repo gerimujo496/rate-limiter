@@ -29,6 +29,7 @@ export function createUsersRouter() {
       );
       response.status(200).json({ data: users, webhook_delivery_ids: webhookDeliveryIds });
     } catch (error) {
+      console.error("GET /users failed:", error);
       const { status, message } = errorHandler(error);
       response.status(status).json({ error: message });
     }
