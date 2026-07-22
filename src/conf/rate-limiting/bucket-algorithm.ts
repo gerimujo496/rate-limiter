@@ -31,7 +31,7 @@ export const rateLimitConfig: RateLimitConfig = new Map([
   [Route.TokenBucket, createMethodPolicies(["GET", "POST"])],
   [Route.Urls, createMethodPolicies(["POST"])],
   [Route.ShortUrl, createMethodPolicies(["GET"])],
-  [Route.Webhooks, createMethodPolicies(["POST"])],
+  [Route.Webhooks, createMethodPolicies(["GET", "POST"])],
   [Route.WebhookHandlerOk, createMethodPolicies(["POST"])],
   [Route.WebhookHandlerFail, createMethodPolicies(["POST"])],
   [Route.Users, createMethodPolicies(["GET", "POST", "PUT", "DELETE"])],

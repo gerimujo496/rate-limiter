@@ -34,3 +34,25 @@ CREATE TABLE IF NOT EXISTS webhooks (
     url TEXT NOT NULL,
     methods http_method[] NOT NULL
 );
+
+-- success: NULL = pending, true = succeeded, false = failed after all retries
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id BIGSERIAL PRIMARY KEY,
+    webhook_id BIGINT REFERENCES webhooks (id) ON DELETE SET NULL,
+    event TEXT NOT NULL,
+    method http_method NOT NULL,
+    target_url TEXT NOT NULL,
+    success BOOLEAN,
+    http_status INTEGER,
+    error_message TEXT,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    bullmq_job_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS webhook_deliveries_webhook_id_idx
+    ON webhook_deliveries (webhook_id);
+
+CREATE INDEX IF NOT EXISTS webhook_deliveries_created_at_idx
+    ON webhook_deliveries (created_at DESC);

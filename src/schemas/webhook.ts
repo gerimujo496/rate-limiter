@@ -37,5 +37,9 @@ export const registerWebhookBodySchema = z.object({
     .transform((methods) => [...new Set(methods)]),
 });
 
+export const webhookDeliveryIdParamSchema = z.object({
+  id: z.coerce.number().int().positive("id must be a positive integer"),
+});
+
 export type WebhookHttpMethod = z.infer<typeof webhookHttpMethodSchema>;
 export type RegisterWebhookBody = z.infer<typeof registerWebhookBodySchema>;

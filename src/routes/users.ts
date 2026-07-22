@@ -22,8 +22,12 @@ export function createUsersRouter() {
   router.get(Route.Users, async (_request, response) => {
     try {
       const users = await listUsers();
-      await triggerWebhooks("GET", "user.listed", users);
-      response.status(200).json(users);
+      const webhookDeliveryIds = await triggerWebhooks(
+        "GET",
+        "user.listed",
+        users,
+      );
+      response.status(200).json({ data: users, webhook_delivery_ids: webhookDeliveryIds });
     } catch (error) {
       const { status, message } = errorHandler(error);
       response.status(status).json({ error: message });
@@ -34,8 +38,12 @@ export function createUsersRouter() {
     try {
       const { id } = parseSchema(userIdParamSchema, request.params);
       const user = await getUserById(id);
-      await triggerWebhooks("GET", "user.retrieved", user);
-      response.status(200).json(user);
+      const webhookDeliveryIds = await triggerWebhooks(
+        "GET",
+        "user.retrieved",
+        user,
+      );
+      response.status(200).json({ data: user, webhook_delivery_ids: webhookDeliveryIds });
     } catch (error) {
       const { status, message } = errorHandler(error);
       response.status(status).json({ error: message });
@@ -46,8 +54,12 @@ export function createUsersRouter() {
     try {
       const body = parseSchema(createUserBodySchema, request.body);
       const user = await createUser(body);
-      await triggerWebhooks("POST", "user.created", user);
-      response.status(201).json(user);
+      const webhookDeliveryIds = await triggerWebhooks(
+        "POST",
+        "user.created",
+        user,
+      );
+      response.status(201).json({ data: user, webhook_delivery_ids: webhookDeliveryIds });
     } catch (error) {
       const { status, message } = errorHandler(error);
       response.status(status).json({ error: message });
@@ -59,8 +71,12 @@ export function createUsersRouter() {
       const { id } = parseSchema(userIdParamSchema, request.params);
       const body = parseSchema(updateUserBodySchema, request.body);
       const user = await updateUser(id, body);
-      await triggerWebhooks("PUT", "user.updated", user);
-      response.status(200).json(user);
+      const webhookDeliveryIds = await triggerWebhooks(
+        "PUT",
+        "user.updated",
+        user,
+      );
+      response.status(200).json({ data: user, webhook_delivery_ids: webhookDeliveryIds });
     } catch (error) {
       const { status, message } = errorHandler(error);
       response.status(status).json({ error: message });
@@ -71,8 +87,12 @@ export function createUsersRouter() {
     try {
       const { id } = parseSchema(userIdParamSchema, request.params);
       const user = await deleteUser(id);
-      await triggerWebhooks("DELETE", "user.deleted", user);
-      response.status(200).json(user);
+      const webhookDeliveryIds = await triggerWebhooks(
+        "DELETE",
+        "user.deleted",
+        user,
+      );
+      response.status(200).json({ data: user, webhook_delivery_ids: webhookDeliveryIds });
     } catch (error) {
       const { status, message } = errorHandler(error);
       response.status(status).json({ error: message });

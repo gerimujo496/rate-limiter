@@ -27,7 +27,7 @@ This service implements three main capabilities, plus deployment:
 | # | Feature | What it does |
 | --- | --- | --- |
 | 1 | **Distributed rate limiter** | Shared per-client quotas across multiple API replicas using Redis + a token-bucket algorithm |
-| 2 | **Async webhooks** | Register callbacks and deliver event payloads through a BullMQ job queue with retries. **Users CRUD is the event source** that triggers those webhooks (create / update / delete / read) |
+| 2 | **Async webhooks** | Register callbacks and deliver event payloads through BullMQ. **Users CRUD** triggers webhooks and returns `webhook_delivery_ids`. Delivery rows stay **pending** until success or final failure. |
 | 3 | **URL shortener** | Create short links, persist them in Postgres, cache lookups in Redis, and redirect |
 | — | **VPS deployment** | Two Docker replicas behind nginx, shipped by GitHub Actions CI/CD |
 
@@ -153,16 +153,25 @@ Users CRUD is **not a separate product feature** here. It exists so the webhook 
 5. **Worker delivery**  
    The worker POSTs `{ event, method, data }` to each callback URL (`data` is the user payload).
 
-6. **Retries**  
-   Failed deliveries retry (up to **10** attempts, **10s** fixed backoff). Failed jobs are kept for inspection. Demo endpoints `/webhooks/handlers/ok` and `/fail` make success vs retry behavior easy to observe.
+6. **Persist + track execution**  
+   When Users CRUD triggers webhooks, the API creates a **pending** row in `webhook_deliveries` and returns `webhook_delivery_ids` so clients can track progress.  
+   - On **success** → row updated to `success = true`  
+   - On **final failure** (all BullMQ attempts exhausted) → row updated to `success = false`  
+   - Intermediate retries leave the row **pending** (`success = null`)  
+   Track with `GET /webhooks/deliveries/:id`.
+
+7. **Retries**  
+   Failed deliveries retry (up to **10** attempts, **10s** fixed backoff). Demo endpoints `/webhooks/handlers/ok` and `/fail` make success vs retry behavior easy to observe.
 
 ```mermaid
 flowchart LR
     Users[Users CRUD] --> Trigger[triggerWebhooks]
-    Trigger --> PG[(Postgres<br/>webhook registry)]
+    Trigger --> PG[(Postgres<br/>pending delivery row)]
     Trigger --> Q[BullMQ queue<br/>in Redis]
+    Users -->|returns webhook_delivery_ids| Client[API client]
     Q --> Worker[Webhook worker]
     Worker --> CB[Callback URL]
+    Worker -->|update on success or final failure| PG
 ```
 
 ---
@@ -247,12 +256,13 @@ Error body shape:
 | `GET` | `/rate-limiter/token-bucket` | Rate-limit demo |
 | `POST` | `/urls` | Create short URL |
 | `GET` | `/shorturl/:shortUrl` | Redirect to long URL (`308`) |
-| `GET` | `/users` | List users |
-| `GET` | `/users/:id` | Get user by id |
-| `POST` | `/users` | Create user (+ webhook `user.created`) |
-| `PUT` | `/users/:id` | Update user (+ webhook `user.updated`) |
-| `DELETE` | `/users/:id` | Delete user (+ webhook `user.deleted`) |
+| `GET` | `/users` | List users (+ webhook ids) |
+| `GET` | `/users/:id` | Get user (+ webhook ids) |
+| `POST` | `/users` | Create user (+ webhook ids) |
+| `PUT` | `/users/:id` | Update user (+ webhook ids) |
+| `DELETE` | `/users/:id` | Delete user (+ webhook ids) |
 | `POST` | `/webhooks` | Register webhook callback |
+| `GET` | `/webhooks/deliveries/:id` | Track delivery status |
 | `POST` | `/webhooks/handlers/ok` | Demo receiver — always `200` |
 | `POST` | `/webhooks/handlers/fail` | Demo receiver — always `500` (retry testing) |
 
@@ -350,14 +360,7 @@ curl -i https://api.gerimujo.com/shorturl/MQ==
 
 ### Users (webhook event source)
 
-Users CRUD feeds the webhook system. Each operation can enqueue deliveries for subscribers that registered the matching HTTP method.
-
-#### `GET /users` / `GET /users/:id`
-
-```bash
-curl https://api.gerimujo.com/users
-curl https://api.gerimujo.com/users/1
-```
+Users CRUD feeds the webhook system. Each response includes `webhook_delivery_ids` so you can track async delivery.
 
 #### `POST /users`
 
@@ -372,11 +375,48 @@ curl -s -X POST https://api.gerimujo.com/users \
 | `name` | string | Yes |
 | `phone_number` | string | Yes |
 
-Triggers webhook event `user.created` for subscribers that include `POST`.
+**201**
 
-#### `PUT /users/:id` / `DELETE /users/:id`
+```json
+{
+  "data": {
+    "id": 1,
+    "name": "Ada",
+    "phone_number": "+15551234567"
+  },
+  "webhook_delivery_ids": [42]
+}
+```
 
-Same body as create for `PUT`. Triggers `user.updated` / `user.deleted` for matching method subscriptions.
+`GET` / `PUT` / `DELETE` use the same envelope: `{ "data": ..., "webhook_delivery_ids": [...] }`.
+
+#### Track a delivery
+
+```bash
+curl https://api.gerimujo.com/webhooks/deliveries/42
+```
+
+**200**
+
+```json
+{
+  "id": 42,
+  "webhook_id": 1,
+  "event": "user.created",
+  "method": "POST",
+  "target_url": "https://api.gerimujo.com/webhooks/handlers/ok",
+  "status": "pending",
+  "success": null,
+  "http_status": null,
+  "error_message": null,
+  "attempt": 0,
+  "bullmq_job_id": null,
+  "created_at": "2026-07-22T12:00:00.000Z",
+  "updated_at": "2026-07-22T12:00:00.000Z"
+}
+```
+
+`status` is `pending` | `succeeded` | `failed` (`success` is `null` | `true` | `false`).
 
 ---
 
@@ -431,7 +471,7 @@ curl -s -X POST https://api.gerimujo.com/webhooks/handlers/fail \
 | Layer | What it proves |
 | --- | --- |
 | **Unit (rate limit)** | Fail-closed → 503, deny → 429, route resolution, headers, trust-proxy IP, `/health` exempt |
-| **Unit (webhooks)** | Schema validation, registration routes, enqueue on trigger, delivery success/failure |
+| **Unit (webhooks)** | Schema, registration, pending delivery IDs on trigger, update on success / final failure only, `GET /webhooks/deliveries/:id` |
 | **Integration (Lua)** | Refill math, deny at empty bucket, corrupt JSON, Redis `TIME` |
 | **Integration (concurrency)** | 20 parallel requests → at most capacity allowed |
 | **Integration (HTTP)** | Middleware headers + separate quotas per `X-Forwarded-For` |

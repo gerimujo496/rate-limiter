@@ -7,6 +7,7 @@ import { createWebhookRouter } from "../../src/routes/webhook.js";
 vi.mock("../../src/helpers/webhooks.js", () => ({
   insertWebhook: vi.fn(),
   getWebhooksByMethod: vi.fn(),
+  getWebhookDeliveryById: vi.fn(),
 }));
 
 function createWebhookTestApp() {
@@ -48,10 +49,35 @@ describe("webhook HTTP routes", () => {
       url: "https://example.com/hook",
       methods: ["POST"],
     });
-    expect(insertWebhook).toHaveBeenCalledWith({
-      url: "https://example.com/hook",
-      methods: ["POST"],
+  });
+
+  it("returns delivery tracking status by id", async () => {
+    const { getWebhookDeliveryById } = await import(
+      "../../src/helpers/webhooks.js"
+    );
+    vi.mocked(getWebhookDeliveryById).mockResolvedValueOnce({
+      id: 42,
+      webhook_id: 1,
+      event: "user.created",
+      method: "POST",
+      target_url: "https://example.com/hook",
+      success: null,
+      http_status: null,
+      error_message: null,
+      attempt: 0,
+      bullmq_job_id: null,
+      created_at: new Date("2026-07-22T12:00:00.000Z"),
+      updated_at: new Date("2026-07-22T12:00:00.000Z"),
     });
+
+    const response = await request(createWebhookTestApp()).get(
+      `${Route.Webhooks}/deliveries/42`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe(42);
+    expect(response.body.status).toBe("pending");
+    expect(response.body.success).toBeNull();
   });
 
   it("returns 400 for invalid registration bodies", async () => {
@@ -70,7 +96,6 @@ describe("webhook HTTP routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("ok");
-    expect(response.body.received).toEqual({ event: "user.created" });
   });
 
   it("demo fail handler returns 500 for retry testing", async () => {

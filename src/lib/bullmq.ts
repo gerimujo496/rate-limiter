@@ -5,6 +5,7 @@ import type { WebhookJobData } from "../types/webhook-job.js";
 
 export const WEBHOOK_QUEUE_NAME = "webhooks";
 export const WEBHOOK_JOB_NAME = "deliver-webhook";
+export const WEBHOOK_MAX_ATTEMPTS = 10;
 
 export type { WebhookJobData };
 
@@ -39,7 +40,7 @@ export function getBullMqConnection(): ConnectionOptions {
 export const webhookQueue = new Queue<WebhookJobData>(WEBHOOK_QUEUE_NAME, {
   connection: getBullMqConnection(),
   defaultJobOptions: {
-    attempts: 10,
+    attempts: WEBHOOK_MAX_ATTEMPTS,
     backoff: {
       type: "fixed",
       delay: 10_000,

@@ -26,6 +26,7 @@ export const APP_ROUTES: readonly AppRouteDefinition[] = [
   { method: "GET", path: `${Route.Urls}/:shortUrl` },
   { method: "POST", path: Route.Urls },
   { method: "POST", path: Route.Webhooks },
+  { method: "GET", path: `${Route.Webhooks}/deliveries/:id` },
   { method: "POST", path: Route.WebhookHandlerOk },
   { method: "POST", path: Route.WebhookHandlerFail },
   { method: "GET", path: Route.Users },

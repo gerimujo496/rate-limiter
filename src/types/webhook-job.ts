@@ -7,6 +7,7 @@ export interface WebhookPayload {
 }
 
 export interface WebhookJobData {
+  deliveryId: number;
   webhookId: number;
   url: string;
   payload: WebhookPayload;
